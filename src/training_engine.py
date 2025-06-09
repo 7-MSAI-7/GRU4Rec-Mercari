@@ -29,6 +29,7 @@ def train_model_with_validation(
     n_epochs,
     k_metrics,
     device,
+    accumulation_steps,
 ):
     """
     주어진 데이터로 모델을 학습하고, 각 에포크(epoch)마다 검증 세트로 성능을 평가합니다.
@@ -51,7 +52,7 @@ def train_model_with_validation(
     start_time = time.time()
     best_val_hr = 0  # 가장 좋았던 검증 세트의 Recall@k 성능을 기록
     best_model_state = None  # 가장 좋았던 모델의 파라미터를 저장
-    scaler = GradScaler()  # AMP(Automatic Mixed Precision)를 위한 스케일러. 학습 속도를 높여줍니다.
+    scaler = GradScaler(enabled=(device.type == 'cuda'))  # AMP(Automatic Mixed Precision)를 위한 스케일러. 학습 속도를 높여줍니다.
     
     # Loss 및 성능 지표(Metric)를 기록하기 위한 리스트
     train_losses, val_losses = [], []
@@ -64,44 +65,56 @@ def train_model_with_validation(
     logger.info(f"  - GRU_HIDDEN_DIM: {config.GRU_HIDDEN_DIM}")
     logger.info(f"  - DROPOUT_RATE: {config.DROPOUT_RATE}")
     logger.info(f"  - Batch Size: {config.BATCH_SIZE}")
+    logger.info(f"  - Accumulation Steps: {accumulation_steps}")
     logger.info(f"  - Learning Rate: {config.LEARNING_RATE}")
     logger.info(f"  - Weight Decay: {config.WEIGHT_DECAY}")
     logger.info(f"  - Clip Grad Norm: {config.CLIP_GRAD_NORM}")
-    logger.info(f"  - Device: {device}")
+    logger.info(f"  - Device: {device}, type: {device.type}, AMP: {device.type == 'cuda'}")
 
     # --- 학습 루프 시작 ---
     for epoch in range(n_epochs):
         model.train()  # 모델을 학습 모드로 설정
         epoch_loss = 0
+        optimizer.zero_grad()  # 이전 배치의 그래디언트(기울기)를 초기화
         
         # tqdm을 사용하여 학습 진행 상황을 시각적으로 보여줍니다.
-        train_iterator = tqdm(train_loader, desc=f"Epoch {epoch+1}/{n_epochs} [Train]")
-        for inputs, targets in train_iterator:
+        train_iterator = tqdm(
+            enumerate(train_loader),
+            total=len(train_loader),
+            desc=f"Epoch {epoch+1}/{n_epochs} [Train]"
+        )
+        for i, (inputs, targets) in train_iterator:
             # 입력 데이터와 정답 데이터를 지정된 장치(GPU)로 이동
             inputs = tuple(i.to(device) for i in inputs)
             targets = targets.to(device)
 
-            optimizer.zero_grad()  # 이전 배치의 그래디언트(기울기)를 초기화
-
             # autocast는 특정 구간에서 자동으로 자료형을 혼합(mixed precision)하여 계산 속도를 향상시킵니다.
-            with autocast(device_type="cuda"):
+            with autocast(device_type=device.type, enabled=(device.type == 'cuda')):
                 outputs = model(*inputs)  # 모델을 통해 예측값 계산
                 loss = criterion(outputs, targets)  # 예측값과 실제 정답 간의 손실(오차) 계산
 
+                # 그래디언트 축적을 위해 손실을 스케일링합니다.
+                loss = loss / accumulation_steps
+
             # 스케일러를 사용하여 손실에 대한 그래디언트를 계산 (오차 역전파)
             scaler.scale(loss).backward()
-             
-            # 그래디언트가 너무 커져서 학습이 불안정해지는 것을 방지(exploding gradients)하기 위해
-            # 그래디언트의 크기를 일정 수준 이하로 잘라냅니다(clipping).
-            scaler.unscale_(optimizer) # 스케일링된 그래디언트를 원래대로 되돌림
-            torch.nn.utils.clip_grad_norm_(model.parameters(), config.CLIP_GRAD_NORM)
+
+            # accumulation_steps 마다 그래디언트를 업데이트합니다.
+            if (i + 1) % accumulation_steps == 0:
+                # 그래디언트가 너무 커져서 학습이 불안정해지는 것을 방지(exploding gradients)하기 위해
+                # 그래디언트의 크기를 일정 수준 이하로 잘라냅니다(clipping).
+                scaler.unscale_(optimizer) # 스케일링된 그래디언트를 원래대로 되돌림
+                torch.nn.utils.clip_grad_norm_(model.parameters(), config.CLIP_GRAD_NORM)
+                
+                # 스케일러를 사용하여 옵티마이저 단계를 수행하고 스케일을 업데이트
+                scaler.step(optimizer)
+                scaler.update()
+
+                # 다음 축적을 위해 그래디언트를 초기화합니다.
+                optimizer.zero_grad()
             
-            # 스케일러를 사용하여 옵티마이저 단계를 수행하고 스케일을 업데이트
-            scaler.step(optimizer)
-            scaler.update()
-            
-            epoch_loss += loss.item()
-            train_iterator.set_postfix(loss=loss.item())  # 진행 바에 현재 손실 값 표시
+            epoch_loss += loss.item() * accumulation_steps # 스케일링된 손실을 원래대로 복원하여 기록
+            train_iterator.set_postfix(loss=loss.item() * accumulation_steps)  # 진행 바에 현재 손실 값 표시
         
         avg_train_loss = epoch_loss / len(train_loader) if len(train_loader) > 0 else 0
         

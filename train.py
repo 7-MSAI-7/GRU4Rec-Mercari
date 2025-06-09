@@ -148,6 +148,10 @@ def main():
 
     # 모델을 지정된 장치(GPU 또는 CPU)로 보냅니다.
     model.to(config.DEVICE)
+
+    # 모델의 총 파라미터 수 로깅
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"모델의 총 학습 가능 파라미터 수: {total_params:,}개")
     
     # 옵티마이저(Optimizer): 모델이 정답을 더 잘 맞히도록 파라미터를 수정하는 방법을 결정 (여기서는 Adam 사용)
     optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY)
@@ -171,6 +175,7 @@ def main():
         n_epochs=config.N_EPOCHS,  # 전체 학습 데이터를 몇 번 반복해서 볼지 결정
         k_metrics=config.K_FOR_METRICS,  # 상위 몇 개의 추천 중 정답이 있는지 평가할지 결정
         device=config.DEVICE,  # 계산 장치
+        accumulation_steps=config.ACCUMULATION_STEPS,
     )
     logger.info("모델 학습 완료! 🎉")
 
