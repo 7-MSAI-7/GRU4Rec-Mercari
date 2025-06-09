@@ -41,33 +41,41 @@
 └── predict.py               # 학습된 모델을 사용한 추천 생성 스크립트
 ```
 
-## ⚙️ 설치
+## ⚙️ 설치 및 환경 설정
 
-1.  **저장소 복제:**
-    ```bash
-    git clone https://github.com/your-username/merrec_recommendation_system.git
-    cd merrec_recommendation_system
-    ```
+### 1. Python 버전
 
-2.  **가상 환경 생성 및 활성화:**
-    ```bash
-    python -m venv .venv
-    # Windows
-    .\.venv\Scripts\activate
-    # macOS/Linux
-    source .venv/bin/activate
-    ```
+이 프로젝트는 **Python 3.12.9**를 기준으로 개발되었습니다. 원활한 실행을 위해 해당 버전 또는 호환되는 버전의 Python을 준비해주세요.
 
-3.  **의존성 패키지 설치:**
-    `requirements.txt` 파일에 명시된 패키지들을 설치합니다.
-    ```bash
-    pip install -r requirements.txt
-    ```
+### 2. 저장소 복제
 
-    *참고: `torch` 관련 패키지는 사용자의 CUDA 버전에 맞게 직접 설치해야 할 수 있습니다.*
-    ```bash
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-    ```
+```bash
+git clone https://github.com/your-username/merrec_recommendation_system.git
+cd merrec_recommendation_system
+```
+
+### 3. 가상 환경 및 의존성 설치
+
+프로젝트의 독립적인 환경을 위해 가상 환경 사용을 권장합니다.
+
+```bash
+# 가상 환경 생성
+python -m venv .venv
+
+# 가상 환경 활성화 (Windows)
+.\.venv\Scripts\activate
+
+# 가상 환경 활성화 (macOS/Linux)
+source .venv/bin/activate
+
+# 의존성 패키지 설치
+pip install -r requirements.txt
+```
+*참고: CUDA GPU를 사용하여 학습을 진행한다면 `torch` 관련 패키지는 사용자의 CUDA 버전에 맞게 직접 설치해야 할 수 있습니다.*
+```bash
+# 예시: CUDA 12.8 환경
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+```
 
 ## 🚀 사용법
 
