@@ -20,9 +20,7 @@ class SequenceDataset(Dataset):
         # (name_embed_list, event_id_list), target_id
         input_seq, target_item = self.sequences[idx]
         
-        # 입력 시퀀스의 텐서들을 CPU로 이동시켜 스택합니다.
-        # 이 과정에서 발생하는 'device' 불일치 오류를 해결합니다.
-        name_embed_list = torch.stack([t.to('cpu') for t in input_seq[0]])
+        name_embed_list = torch.stack([t for t in input_seq[0]])
         event_id_list = torch.tensor(input_seq[1])
 
         return (name_embed_list, event_id_list), target_item
