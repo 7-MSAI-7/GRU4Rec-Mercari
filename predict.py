@@ -42,6 +42,12 @@ def load_inference_dependencies():
     else:
         # 파일이 없으면 오류를 발생시켜 프로그램을 중단합니다.
         raise FileNotFoundError(f"{config.ITEM_ID_IDX_PATH} 파일을 찾을 수 없습니다.")
+    
+    print(f"학습 모델 로드 중...")
+    if os.path.exists(config.MODEL_SAVE_PATH):
+        model_state_dict = torch.load(config.MODEL_SAVE_PATH, map_location=config.DEVICE)
+    else:
+        raise FileNotFoundError(f"{config.MODEL_SAVE_PATH} 파일을 찾을 수 없습니다.")
 
     # 이벤트(사용자 행동)와 내부 인덱스를 매핑하는 사전을 정의합니다.
     # 학습 때 사용했던 것과 동일한 구조여야 합니다.
@@ -57,6 +63,7 @@ def load_inference_dependencies():
 
     # 모델을 초기화하고 학습된 가중치를 로드할 준비를 합니다.
     # 학습 때와 동일한 파라미터로 모델 구조를 만들어야 합니다.
+    print(f"모델 초기화 중...")
     model_args = {
         "device": config.DEVICE,
         "name_embedding_dim": config.NAME_EMBEDDING_DIM,
@@ -68,6 +75,7 @@ def load_inference_dependencies():
         "n_items": len(item_id_to_idx),  # 전체 아이템 종류 수
     }
     model = GruModel(**model_args)
+    model.load_state_dict(model_state_dict)
 
     # 모델을 추론 모드(eval)로 설정합니다.
     # 이는 학습 때와 달리 드롭아웃 등의 기능을 비활성화하여 일관된 예측을 하도록 합니다.
