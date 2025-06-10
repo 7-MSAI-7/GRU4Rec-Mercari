@@ -55,14 +55,6 @@ def load_inference_dependencies():
         "buy_comp": 6,  # 구매 완료
     }
 
-    # 미리 계산된 아이템 이름 임베딩(숫자 벡터)을 불러옵니다.
-    if os.path.exists(config.ITEM_IDX_NAME_PATH):
-        item_idx_to_embedded_name = torch.load(
-            config.ITEM_IDX_NAME_PATH, map_location=config.DEVICE
-        )
-    else:
-        raise FileNotFoundError(f"{config.ITEM_IDX_NAME_PATH} 파일을 찾을 수 없습니다.")
-
     # 모델을 초기화하고 학습된 가중치를 로드할 준비를 합니다.
     # 학습 때와 동일한 파라미터로 모델 구조를 만들어야 합니다.
     model_args = {
@@ -74,8 +66,6 @@ def load_inference_dependencies():
         "dropout_rate": config.DROPOUT_RATE,
         "n_events": len(event_to_idx),  # 전체 이벤트 종류 수
         "n_items": len(item_id_to_idx),  # 전체 아이템 종류 수
-        "item_id_to_idx": item_id_to_idx,
-        "item_idx_to_name_embedding": item_idx_to_embedded_name,
     }
     model = GruModel(**model_args)
 
