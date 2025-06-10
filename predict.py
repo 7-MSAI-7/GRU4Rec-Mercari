@@ -7,6 +7,7 @@
 import os
 import pickle
 import random
+import glob
 import torch
 import pandas as pd
 from sentence_transformers import SentenceTransformer
@@ -98,7 +99,9 @@ if __name__ == "__main__":
     # df_item_info = pd.read_parquet(
     #     r"D:/Downloads/merrec/20230501/000000000000.parquet"
     # )
-    df_item_info = pd.read_parquet(config.DATA_PATH)
+    parquet_files = glob.glob(config.DATA_PATH)
+    df_item_info = pd.concat([pd.read_parquet(file) for file in parquet_files])
+
     # 아이템 ID를 기준으로 중복을 제거하고 필요한 컬럼만 선택합니다.
     df_item_info = (
         df_item_info[["item_id", "name", "c0_name", "c1_name", "c2_name"]]
