@@ -63,6 +63,8 @@ def train_model_with_validation(
     logger.info(f"  - Epochs: {n_epochs}")
     logger.info(f"  - GRU_NUM_LAYERS: {config.GRU_NUM_LAYERS}")
     logger.info(f"  - GRU_HIDDEN_DIM: {config.GRU_HIDDEN_DIM}")
+    logger.info(f"  - NAME_EMBEDDING_DIM: {config.NAME_EMBEDDING_DIM}")
+    logger.info(f"  - EVENT_EMBEDDING_DIM: {config.EVENT_EMBEDDING_DIM}")
     logger.info(f"  - DROPOUT_RATE: {config.DROPOUT_RATE}")
     logger.info(f"  - Batch Size: {config.BATCH_SIZE}")
     logger.info(f"  - Accumulation Steps: {accumulation_steps}")
