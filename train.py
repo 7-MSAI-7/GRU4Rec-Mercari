@@ -64,7 +64,7 @@ def main():
     (
         train_samples, valid_samples, test_samples,  # 학습, 검증, 테스트용 데이터
         item_id_to_idx, event_to_idx, idx_to_item_id,  # 아이템/이벤트와 고유 번호 사이의 변환 정보
-        item_idx_to_embedded_name, df_item_info  # 아이템 정보 및 임베딩 관련 데이터
+        item_idx_to_embedded_name, df_item_info, class_weights  # 아이템 정보 및 클래스 가중치
     ) = load_and_preprocess_data_with_split(
         df_full,
         min_len_for_split=config.MIN_LEN_FOR_SEQ_SPLIT,  # 사용자의 행동 시퀀스를 나누기 위한 최소 길이
@@ -156,8 +156,10 @@ def main():
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.N_EPOCHS, eta_min=1e-6)
     
     # 손실 함수(Loss Function): 모델의 예측이 실제 정답과 얼마나 다른지(오차)를 계산하는 함수
-    criterion = nn.CrossEntropyLoss(ignore_index=0, label_smoothing=0.1)  # 0번 인덱스(패딩)는 계산에서 제외, label smoothing 적용
-
+    # 계산된 클래스 가중치를 GPU로 이동하여 손실 함수에 적용합니다.
+    class_weights_tensor = class_weights.to(config.DEVICE)
+    criterion = nn.CrossEntropyLoss(weight=class_weights_tensor, ignore_index=0, label_smoothing=0.1)
+    
     # --- 4. 모델 학습 및 검증 ---
     logger.info("모델 학습을 시작합니다... 🚀")
     # 설정된 값들을 바탕으로 모델 학습을 진행합니다.

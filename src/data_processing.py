@@ -153,6 +153,56 @@ def load_and_preprocess_data_with_split(df_full, min_len_for_split):
         torch.save(data_to_save, config.ITEM_IDX_NAME_PATH)
         logger.info("임베딩 파일 업데이트 완료.")
 
+    # --- 4.5. 클래스 가중치 계산 (카테고리 불균형 해소) ---
+    logger.info("대분류 카테고리(c0_name) 빈도 기반 가중 손실을 위한 가중치 계산 시작...")
+    
+    class_weights = None
+    if 'c0_name' in df_full.columns:
+        # 1. 아이템별 카테고리 정보 매핑 생성
+        # drop_duplicates: 아이템 ID당 하나의 c0_name만 있도록 보장합니다. (데이터에 오류가 있을 경우 대비)
+        item_id_to_c0_name = df_full[['item_id', 'c0_name']].drop_duplicates(subset=['item_id']).set_index('item_id')['c0_name']
+
+        # 2. 카테고리별 빈도수 계산
+        # 전체 데이터셋의 카테고리 분포를 사용합니다.
+        category_counts = df_full['c0_name'].value_counts()
+        
+        # 3. 역빈도 가중치 계산 (Inverse Frequency Weighting)
+        # 공식: weight = 전체 샘플 수 / (클래스 수 * 클래스별 샘플 수)
+        # 이를 통해 소수 클래스(빈도가 낮은 카테고리)에 더 높은 가중치를 부여합니다.
+        total_samples = category_counts.sum()
+        num_categories = len(category_counts)
+        
+        # category_counts가 비어있는 경우를 대비
+        if num_categories > 0:
+            category_weight_map = (total_samples / (num_categories * category_counts)).to_dict()
+        else:
+            category_weight_map = {}
+
+        # 4. 아이템 인덱스별 가중치 텐서 생성
+        num_items = len(item_id_to_idx)
+        class_weights_list = [1.0] * num_items # 기본 가중치는 1로 설정
+        
+        for item_id, idx in item_id_to_idx.items():
+            if item_id == "<PAD_ITEM_ID>":
+                class_weights_list[idx] = 0.0 # PAD 토큰은 손실 계산에서 제외
+                continue
+            
+            # 아이템 ID에 해당하는 카테고리 이름을 찾고, 그 카테고리의 가중치를 할당
+            c0_name = item_id_to_c0_name.get(item_id)
+            if c0_name and c0_name in category_weight_map:
+                class_weights_list[idx] = category_weight_map[c0_name]
+
+        class_weights = torch.FloatTensor(class_weights_list)
+        
+        logger.info("카테고리 기반 가중치 계산 완료.")
+        if category_weight_map:
+            logger.info(f"계산된 카테고리 가중치 (상위 5개 샘플): { {k: v for k, v in list(category_weight_map.items())[:5]} }")
+    else:
+        logger.warning("'c0_name' 컬럼을 찾을 수 없어 가중치를 계산할 수 없습니다. 모든 아이템 가중치를 1로 설정합니다.")
+        num_items = len(item_id_to_idx)
+        class_weights = torch.ones(num_items)
+        class_weights[item_id_to_idx["<PAD_ITEM_ID>"]] = 0.0
+
     # --- 5. 시퀀스 분할 및 학습 데이터 생성 ---
     logger.info("사용자(세션) 기반으로 Train/Valid/Test 데이터 분할 시작...")
     
@@ -290,5 +340,5 @@ def load_and_preprocess_data_with_split(df_full, min_len_for_split):
     return (
         train_samples, valid_samples, test_samples,
         item_id_to_idx, event_to_idx, idx_to_item_id,
-        item_idx_to_embedded_name, df_item_info
+        item_idx_to_embedded_name, df_item_info, class_weights
     ) 
