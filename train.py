@@ -77,7 +77,7 @@ def main():
     # --- 2. 데이터 로더 준비 ---
     # 데이터를 모델에 효율적으로 공급하기 위한 '데이터 로더'를 준비합니다.
     # SequenceDataset은 데이터를 모델에 맞는 형태로 하나씩 꺼내주는 역할을 합니다.
-    train_dataset = SequenceDataset(train_samples)
+    train_dataset = SequenceDataset(train_samples, is_train=True)
     valid_dataset = SequenceDataset(valid_samples)
     test_dataset = SequenceDataset(test_samples)
 
@@ -149,14 +149,14 @@ def main():
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"모델의 총 학습 가능 파라미터 수: {total_params:,}개")
     
-    # 옵티마이저(Optimizer): 모델이 정답을 더 잘 맞히도록 파라미터를 수정하는 방법을 결정 (여기서는 Adam 사용)
-    optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY)
+    # 옵티마이저(Optimizer): 모델이 정답을 더 잘 맞히도록 파라미터를 수정하는 방법을 결정 (여기서는 AdamW 사용)
+    optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY)
     
     # 스케줄러(Scheduler): 학습이 진행됨에 따라 학습률(learning rate)을 조절하여 더 정교하게 학습하도록 도와줌
-    scheduler = ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.N_EPOCHS, eta_min=1e-6)
     
     # 손실 함수(Loss Function): 모델의 예측이 실제 정답과 얼마나 다른지(오차)를 계산하는 함수
-    criterion = nn.CrossEntropyLoss(ignore_index=0)  # 0번 인덱스(보통 '패딩'을 의미)는 계산에서 제외
+    criterion = nn.CrossEntropyLoss(ignore_index=0, label_smoothing=0.1)  # 0번 인덱스(패딩)는 계산에서 제외, label smoothing 적용
 
     # --- 4. 모델 학습 및 검증 ---
     logger.info("모델 학습을 시작합니다... 🚀")

@@ -124,8 +124,8 @@ def train_model_with_validation(
             model, valid_loader, criterion, k_metrics, device
         )
         
-        # 스케줄러에 검증 손실을 전달하여 학습률을 조절합니다.
-        scheduler.step(val_loss)
+        # 스케줄러에 다음 에포크를 위한 스텝을 진행시킵니다.
+        scheduler.step()
 
         # 현재 학습률을 가져와 로그로 남깁니다.
         current_lr = optimizer.param_groups[0]['lr']
