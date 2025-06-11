@@ -54,12 +54,8 @@ def main():
         logger.warning(f"경고: '{config.DATA_PATH}' 경로에서 Parquet 파일을 찾을 수 없습니다.")
         return
 
-    df_full = pd.DataFrame()
-    for f in parquet_files:
-        df = pd.read_parquet(f)
-        df_full = pd.concat([df_full, df], ignore_index=True)
-
-        logger.info(f"진행 중인 파일: {f}, {len(df_full)}개 행 로드 완료.")
+    df_full = pd.concat(map(pd.read_parquet, parquet_files), ignore_index=True)
+    logger.info(f"{len(df_full)}개 행 로드 완료.")
 
 
     # --- 1. 데이터 전처리 및 분할 ---
