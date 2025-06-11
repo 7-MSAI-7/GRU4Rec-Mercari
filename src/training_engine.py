@@ -232,7 +232,7 @@ def evaluate_model(model, data_loader, criterion, k, device):
 
             # --- 정확도 계산 ---
             _, predictions = outputs.max(1) # 가장 점수가 높은 1개의 예측
-            num_correct += (predictions == targets).sum()
+            num_correct += (predictions == targets).sum().item()
             num_samples += predictions.size(0)
 
     avg_loss = total_loss / len(data_loader) if len(data_loader) > 0 else 0
