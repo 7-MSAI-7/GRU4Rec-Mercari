@@ -225,96 +225,11 @@ def load_and_preprocess_data_with_split(df_full, min_len_for_split):
 
     logger.info(f"데이터 그룹 분할 완료: Train: {len(train_groups)}, Valid: {len(valid_groups)}, Test: {len(test_groups)} 그룹")
 
-    def create_samples_from_groups(groups, dataset_type):
-        """
-        주어진 그룹으로부터 학습/검증/테스트 샘플을 생성하는 함수.
-        Leave-one-out 방식을 각 그룹 내에서만 적용.
-        """
-        samples = []
-        for _, group in tqdm(groups, desc=f"{dataset_type} 샘플 생성 중"):
-            item_ids = group["item_id"].tolist()
-            
-            name_sequences = [
-                item_idx_to_embedded_name.get(item_id_to_idx.get(item_id))
-                for item_id in item_ids
-            ]
-            
-            event_sequences = [
-                event_to_idx.get(e, 0) for e in group["event_id"].tolist()
-            ]
-
-            item_idx_sequences = [
-                item_id_to_idx[item_id] for item_id in item_ids
-            ]
-
-            current_paired_sequences = list(
-                zip(name_sequences, event_sequences, item_idx_sequences)
-            )
-
-            if len(current_paired_sequences) < config.MIN_LEN_FOR_SEQ_SPLIT:
-                continue
-
-            # --- Leave-One-Out 샘플링 ---
-            # 각 사용자 시퀀스 내에서, 마지막 상호작용을 예측하는 방식으로 데이터를 구성합니다.
-            # 이 방식은 이제 각 분할된 데이터셋(Train/Valid/Test) 그룹 내에서만 독립적으로 적용됩니다.
-            # 예시 시퀀스: [A, B, C, D, E]
-            if dataset_type == 'test':
-                # 테스트셋: 사용자의 가장 마지막 행동을 예측합니다.
-                # Input: [A, B, C, D] -> Target: E
-                input_sequences = current_paired_sequences[:-1]
-                target_item_idx = current_paired_sequences[-1][2]
-                if input_sequences:
-                    samples.append(
-                        (
-                            (
-                                [s[0] for s in input_sequences],
-                                [s[1] for s in input_sequences],
-                            ),
-                            target_item_idx,
-                        )
-                    )
-            elif dataset_type == 'valid':
-                # 검증셋: 마지막에서 두 번째 행동을 예측합니다.
-                # 이를 통해 학습 중 모델의 일반화 성능을 평가합니다.
-                # Input: [A, B, C] -> Target: D
-                input_sequences = current_paired_sequences[:-2]
-                target_item_idx = current_paired_sequences[-2][2]
-                if input_sequences:
-                    samples.append(
-                        (
-                            (
-                                [s[0] for s in input_sequences],
-                                [s[1] for s in input_sequences],
-                            ),
-                            target_item_idx,
-                        )
-                    )
-            else: # train
-                # 학습셋: 시퀀스를 점진적으로 늘려가며 여러 학습 샘플을 만듭니다.
-                # 이를 통해 모델이 시퀀스의 다음 아이템을 예측하는 패턴을 학습합니다.
-                # 예시:
-                # Input: [A]       -> Target: B
-                # Input: [A, B]    -> Target: C
-                train_sequences_all = current_paired_sequences[:-2]
-                for i in range(1, len(train_sequences_all)):
-                    train_input = train_sequences_all[:i]
-                    train_target = train_sequences_all[i][2]
-                    if train_input:
-                        samples.append(
-                            (
-                                (
-                                    [s[0] for s in train_input],
-                                    [s[1] for s in train_input],
-                                ),
-                                train_target,
-                            )
-                        )
-        return samples
-
     # 각 그룹으로부터 샘플 생성
-    train_samples = create_samples_from_groups(train_groups, 'train')
-    valid_samples = create_samples_from_groups(valid_groups, 'valid')
-    test_samples = create_samples_from_groups(test_groups, 'test')
+    train_samples = create_samples_from_groups(train_groups, 'train', item_idx_to_embedded_name, item_id_to_idx, event_to_idx)
+    valid_samples = create_samples_from_groups(valid_groups, 'valid', item_idx_to_embedded_name, item_id_to_idx, event_to_idx)
+    test_samples = create_samples_from_groups(test_groups, 'test', item_idx_to_embedded_name, item_id_to_idx, event_to_idx)
+
 
     # --- 6. 최종 정리 ---
     # 추천 결과를 보여줄 때 사용할 아이템 정보를 담은 데이터프레임을 만듭니다.
@@ -342,3 +257,89 @@ def load_and_preprocess_data_with_split(df_full, min_len_for_split):
         item_id_to_idx, event_to_idx, idx_to_item_id,
         item_idx_to_embedded_name, df_item_info, class_weights
     ) 
+
+def create_samples_from_groups(groups, dataset_type, item_idx_to_embedded_name, item_id_to_idx, event_to_idx):
+    """
+    주어진 그룹으로부터 학습/검증/테스트 샘플을 생성하는 함수.
+    Leave-one-out 방식을 각 그룹 내에서만 적용.
+    """
+    samples = []
+    for _, group in tqdm(groups, desc=f"{dataset_type} 샘플 생성 중"):
+        item_ids = group["item_id"].tolist()
+        
+        name_sequences = [
+            item_idx_to_embedded_name.get(item_id_to_idx.get(item_id))
+            for item_id in item_ids
+        ]
+        
+        event_sequences = [
+            event_to_idx.get(e, 0) for e in group["event_id"].tolist()
+        ]
+
+        item_idx_sequences = [
+            item_id_to_idx[item_id] for item_id in item_ids
+        ]
+
+        current_paired_sequences = list(
+            zip(name_sequences, event_sequences, item_idx_sequences)
+        )
+
+        if len(current_paired_sequences) < config.MIN_LEN_FOR_SEQ_SPLIT:
+            continue
+
+        # --- Leave-One-Out 샘플링 ---
+        # 각 사용자 시퀀스 내에서, 마지막 상호작용을 예측하는 방식으로 데이터를 구성합니다.
+        # 이 방식은 이제 각 분할된 데이터셋(Train/Valid/Test) 그룹 내에서만 독립적으로 적용됩니다.
+        # 예시 시퀀스: [A, B, C, D, E]
+        if dataset_type == 'test':
+            # 테스트셋: 사용자의 가장 마지막 행동을 예측합니다.
+            # Input: [A, B, C, D] -> Target: E
+            input_sequences = current_paired_sequences[:-1]
+            target_item_idx = current_paired_sequences[-1][2]
+            if input_sequences:
+                samples.append(
+                    (
+                        (
+                            [s[0] for s in input_sequences],
+                            [s[1] for s in input_sequences],
+                        ),
+                        target_item_idx,
+                    )
+                )
+        elif dataset_type == 'valid':
+            # 검증셋: 마지막에서 두 번째 행동을 예측합니다.
+            # 이를 통해 학습 중 모델의 일반화 성능을 평가합니다.
+            # Input: [A, B, C] -> Target: D
+            input_sequences = current_paired_sequences[:-2]
+            target_item_idx = current_paired_sequences[-2][2]
+            if input_sequences:
+                samples.append(
+                    (
+                        (
+                            [s[0] for s in input_sequences],
+                            [s[1] for s in input_sequences],
+                        ),
+                        target_item_idx,
+                    )
+                )
+        else: # train
+            # 학습셋: 시퀀스를 점진적으로 늘려가며 여러 학습 샘플을 만듭니다.
+            # 이를 통해 모델이 시퀀스의 다음 아이템을 예측하는 패턴을 학습합니다.
+            # 예시:
+            # Input: [A]       -> Target: B
+            # Input: [A, B]    -> Target: C
+            train_sequences_all = current_paired_sequences[:-2]
+            for i in range(1, len(train_sequences_all)):
+                train_input = train_sequences_all[:i]
+                train_target = train_sequences_all[i][2]
+                if train_input:
+                    samples.append(
+                        (
+                            (
+                                [s[0] for s in train_input],
+                                [s[1] for s in train_input],
+                            ),
+                            train_target,
+                        )
+                    )
+    return samples
